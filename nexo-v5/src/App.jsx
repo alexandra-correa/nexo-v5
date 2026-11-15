@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import Auth from "./Auth.jsx";
 import { supabase } from "./supabase";
@@ -392,7 +391,7 @@ function App() {
   }, [restaurantId]);
 
   // CARGAR MESA PARA LA VISTA DEL CLIENTE
-  // CORRECCIÓN: se utiliza maybeSingle() en lugar de single()
+  // CORRECCIÓN: consultar solo las columnas autorizadas para anon
   useEffect(() => {
     if (!customerMode) return;
 
@@ -410,7 +409,9 @@ function App() {
 
         const { data, error } = await supabase
           .from("restaurant_tables")
-          .select("*")
+          .select(
+            "id, restaurant_id, table_number, qr_token, seats, zone, status"
+          )
           .eq("qr_token", qrToken)
           .limit(1)
           .maybeSingle();
@@ -419,7 +420,7 @@ function App() {
 
         if (!data) {
           throw new Error(
-            "No se encontró esta mesa. Verifica el código QR o los permisos de acceso público en Supabase."
+            "No se encontró esta mesa. Verifica que el código QR corresponda a una mesa registrada y que los permisos públicos estén activos en Supabase."
           );
         }
 
