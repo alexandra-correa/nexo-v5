@@ -1315,20 +1315,19 @@ function Tables({ state, setModal, createStaffAction, notify }) {
                       Solicitar cuenta
                     </button>
 
-                    {occupied && (
-                      <button
-                        className="button secondary full"
-                        disabled={actionLoading}
-                        onClick={() => {
-                          if (confirm(`¿Confirmas que deseas liberar la mesa ${table.number}?`)) {
-                            runTableAction("release");
-                          }
-                        }}
-                      >
-                        <CheckCheck size={16} />
-                        Liberar mesa
-                      </button>
-                    )}
+                    {/* LIBERAR MESA: SIEMPRE VISIBLE SI NO ESTÁ DESHABILITADA */}
+                    <button
+                      className="button secondary full"
+                      disabled={actionLoading}
+                      onClick={() => {
+                        if (confirm(`¿Confirmas que deseas dejar disponible la mesa ${table.number}?`)) {
+                          runTableAction("release");
+                        }
+                      }}
+                    >
+                      <CheckCheck size={16} />
+                      {actionLoading ? "Procesando..." : "Liberar mesa"}
+                    </button>
                   </>
                 )}
               </div>
