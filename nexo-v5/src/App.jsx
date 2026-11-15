@@ -1281,6 +1281,7 @@ function Tables({ state, setModal, createStaffAction, notify }) {
                 </div>
               </div>
 
+              {/* ACCIONES DEL PERSONAL */}
               <div className="table-staff-actions">
                 <div className="eyebrow">ACCIONES DEL PERSONAL</div>
 
@@ -1305,7 +1306,7 @@ function Tables({ state, setModal, createStaffAction, notify }) {
                       onClick={() => runTableAction("place_order")}
                     >
                       <Utensils size={16} />
-                      Registrar pedido
+                      {actionLoading ? "Procesando..." : "Registrar pedido"}
                     </button>
 
                     <button
@@ -1314,23 +1315,28 @@ function Tables({ state, setModal, createStaffAction, notify }) {
                       onClick={() => runTableAction("request_bill")}
                     >
                       <Wallet size={16} />
-                      Solicitar cuenta
+                      {actionLoading ? "Procesando..." : "Solicitar cuenta"}
                     </button>
 
-                    {/* LIBERAR MESA: SIEMPRE VISIBLE SI NO ESTÁ DESHABILITADA */}
                     <button
-  className="button secondary full"
-  disabled={actionLoading || disabled}
-  onClick={() => {
-    if (confirm(`¿Confirmas que deseas liberar la mesa ${table.number}?`)) {
-      runTableAction("release");
-    }
-  }}
->
-  <CheckCheck size={16} />
-  {actionLoading ? "Procesando..." : "Liberar mesa"}
-</button>
+                      className="button secondary full"
+                      disabled={actionLoading}
+                      onClick={() => {
+                        if (window.confirm(
+                          `¿Confirmas que deseas liberar la mesa ${table.number}?`
+                        )) {
+                          runTableAction("release");
+                        }
+                      }}
+                    >
+                      <CheckCheck size={16} />
+                      {actionLoading ? "Procesando..." : "Liberar mesa"}
+                    </button>
+                  </>
+                )}
+              </div>
 
+              {/* CÓDIGO QR */}
               <div className="qr-preview">
                 {qrUrl ? (
                   <QRCodeCanvas
@@ -1374,14 +1380,20 @@ function Tables({ state, setModal, createStaffAction, notify }) {
                 Abrir vista cliente <ExternalLink size={14} />
               </button>
 
+              {/* SOLICITUDES DE LA MESA */}
               <div className="detail-requests">
                 <b>Solicitudes abiertas ({tableRequests.length})</b>
-                {tableRequests.length ? tableRequests.map(r => (
-                  <div key={r.id} className="mini-request">
-                    <span>{requestLabel(r.type)}</span>
-                    <StatusPill status={r.status} />
-                  </div>
-                )) : <p>No hay solicitudes abiertas.</p>}
+
+                {tableRequests.length ? (
+                  tableRequests.map(r => (
+                    <div key={r.id} className="mini-request">
+                      <span>{requestLabel(r.type)}</span>
+                      <StatusPill status={r.status} />
+                    </div>
+                  ))
+                ) : (
+                  <p>No hay solicitudes abiertas.</p>
+                )}
               </div>
             </>
           ) : (
