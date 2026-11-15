@@ -1138,7 +1138,9 @@ function Tables({ state, setModal, createStaffAction, notify }) {
   );
 
   const disabled = table?.status === "deshabilitada";
-  const occupied = table?.status === "ocupada";
+  const occupied = ["ocupada", "occupied"].includes(
+    String(table?.status || "").toLowerCase()
+  );
 
   const runTableAction = async (action, note = "") => {
     if (!table || actionLoading || disabled) return;
@@ -1317,20 +1319,17 @@ function Tables({ state, setModal, createStaffAction, notify }) {
 
                     {/* LIBERAR MESA: SIEMPRE VISIBLE SI NO ESTÁ DESHABILITADA */}
                     <button
-                      className="button secondary full"
-                      disabled={actionLoading}
-                      onClick={() => {
-                        if (confirm(`¿Confirmas que deseas dejar disponible la mesa ${table.number}?`)) {
-                          runTableAction("release");
-                        }
-                      }}
-                    >
-                      <CheckCheck size={16} />
-                      {actionLoading ? "Procesando..." : "Liberar mesa"}
-                    </button>
-                  </>
-                )}
-              </div>
+  className="button secondary full"
+  disabled={actionLoading || disabled}
+  onClick={() => {
+    if (confirm(`¿Confirmas que deseas liberar la mesa ${table.number}?`)) {
+      runTableAction("release");
+    }
+  }}
+>
+  <CheckCheck size={16} />
+  {actionLoading ? "Procesando..." : "Liberar mesa"}
+</button>
 
               <div className="qr-preview">
                 {qrUrl ? (
