@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import Auth from "./Auth.jsx";
 import { supabase } from "./supabase";
@@ -148,7 +149,6 @@ function App() {
     params.has("qr");
 
   const qrToken = params.get("qr");
-  const tableParam = params.get("mesa");
 
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -341,8 +341,7 @@ function App() {
             requests: (requests || []).map(row =>
               mapRequest({
                 ...row,
-                table_number:
-                  row.restaurant_tables?.table_number
+                table_number: row.restaurant_tables?.table_number
               })
             )
           }));
@@ -391,7 +390,6 @@ function App() {
   }, [restaurantId]);
 
   // CARGAR MESA PARA LA VISTA DEL CLIENTE
-  // CORRECCIÓN: consultar solo las columnas autorizadas para anon
   useEffect(() => {
     if (!customerMode) return;
 
@@ -509,6 +507,34 @@ function App() {
     } catch (error) {
       console.error(error);
       notify(error.message || "No se pudo crear la solicitud.");
+    }
+  };
+
+  // ACCIONES DEL PERSONAL SOBRE LAS MESAS
+  const createStaffAction = async (tableId, action, note = "") => {
+    const messages = {
+      occupy: "Mesa marcada como ocupada.",
+      release: "Mesa liberada. Ahora está disponible.",
+      place_order: "Pedido registrado correctamente.",
+      request_bill: "Solicitud de cuenta registrada."
+    };
+
+    try {
+      const { error } = await supabase.rpc(
+        "create_staff_table_action",
+        {
+          p_table_id: tableId,
+          p_action: action,
+          p_notes: note || null
+        }
+      );
+
+      if (error) throw error;
+
+      notify(messages[action] || "Acción registrada correctamente.");
+    } catch (error) {
+      console.error("Error ejecutando acción de mesa:", error);
+      notify(error.message || "No se pudo ejecutar la acción.");
     }
   };
 
@@ -755,6 +781,7 @@ function App() {
               state={state}
               setModal={setModal}
               createRequest={createRequest}
+              createStaffAction={createStaffAction}
               notify={notify}
             />
           )}
@@ -868,7 +895,7 @@ function Dashboard({
   average, setPage, changeRequest, notify
 }) {
   const recent = state.requests.slice(0, 5);
-  const occupied = state.tables.filter(t => t.status !== "libre").length;
+  const occupied = state.tables.filter(t => t.status === "ocupada").length;
 
   return (
     <>
@@ -913,8 +940,8 @@ function Dashboard({
           delta="Requieren atención" icon={Bell} tone="orange" foot="Por gestionar" />
         <StatCard label="En proceso" value={inProgress.length}
           icon={Timer} tone="purple" foot="Atención del equipo" />
-        <StatCard label="Mesas activas" value={`${occupied}/${state.tables.length}`}
-          icon={Table2} tone="blue" foot="Mesas con actividad" />
+        <StatCard label="Mesas ocupadas" value={`${occupied}/${state.tables.length}`}
+          icon={Table2} tone="blue" foot="Mesas con clientes" />
         <StatCard label="Solicitudes registradas" value={todayCount}
           delta="Actividad total" icon={Activity} tone="green" foot="Desde Supabase" />
       </div>
@@ -948,14 +975,14 @@ function Dashboard({
               {Math.round(occupied / Math.max(1, state.tables.length) * 100)}
               <small>%</small>
             </div>
-            <div><b>Ocupación / actividad</b><p>{occupied} de {state.tables.length} mesas con actividad</p></div>
+            <div><b>Ocupación / actividad</b><p>{occupied} de {state.tables.length} mesas ocupadas</p></div>
           </div>
           <div className="progress-track">
             <div style={{ width: `${occupied / Math.max(1, state.tables.length) * 100}%` }} />
           </div>
           <div className="legend">
             <span><i className="dot free" /> Libre</span>
-            <span><i className="dot busy" /> Activa</span>
+            <span><i className="dot busy" /> Ocupada</span>
             <span><i className="dot alert" /> Solicitud</span>
           </div>
           <div className="quick-actions">
@@ -1094,9 +1121,10 @@ function Requests({ state, search, setSearch, filter, setFilter, changeRequest, 
 }
 
 // GESTIÓN DE MESAS Y CÓDIGOS QR REALES
-function Tables({ state, setModal, createRequest, notify }) {
+function Tables({ state, setModal, createStaffAction, notify }) {
   const [zone, setZone] = useState("Todas");
   const [selected, setSelected] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const tables = state.tables.filter(t => zone === "Todas" || t.zone === zone);
   const table = state.tables.find(t => t.id === selected);
@@ -1108,6 +1136,21 @@ function Tables({ state, setModal, createRequest, notify }) {
   const tableRequests = state.requests.filter(
     r => r.tableId === selected && r.status !== "atendida"
   );
+
+  const disabled = table?.status === "deshabilitada";
+  const occupied = table?.status === "ocupada";
+
+  const runTableAction = async (action, note = "") => {
+    if (!table || actionLoading || disabled) return;
+
+    setActionLoading(true);
+
+    try {
+      await createStaffAction(table.id, action, note);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const downloadQR = () => {
     if (!qrUrl) {
@@ -1161,7 +1204,7 @@ function Tables({ state, setModal, createRequest, notify }) {
       <PageHeading
         eyebrow="DISTRIBUCIÓN DEL RESTAURANTE"
         title="Gestión de mesas"
-        desc="Consulta el estado de cada mesa y accede a su experiencia QR."
+        desc="Consulta el estado de cada mesa y gestiona su servicio."
         action={
           <button className="button primary" onClick={() => notify("La creación de mesas desde el panel se habilitará en el siguiente paso.")}>
             <Plus size={16} /> Agregar mesa
@@ -1178,7 +1221,7 @@ function Tables({ state, setModal, createRequest, notify }) {
         </div>
         <div className="legend">
           <span><i className="dot free" /> Libre</span>
-          <span><i className="dot busy" /> Activa</span>
+          <span><i className="dot busy" /> Ocupada</span>
           <span><i className="dot alert" /> Solicitud</span>
         </div>
       </div>
@@ -1198,7 +1241,11 @@ function Tables({ state, setModal, createRequest, notify }) {
               <b>Mesa {String(t.number).padStart(2, "0")}</b>
               <small>{t.seats} personas</small>
               <span className={`table-status ${t.status}`}>
-                {t.status === "libre" ? "Disponible" : "En servicio"}
+                {t.status === "libre"
+                  ? "Disponible"
+                  : t.status === "deshabilitada"
+                    ? "Deshabilitada"
+                    : "Ocupada"}
               </span>
             </button>
           ))}
@@ -1220,7 +1267,70 @@ function Tables({ state, setModal, createRequest, notify }) {
               <div className="detail-facts">
                 <div><small>Zona</small><b>{table.zone}</b></div>
                 <div><small>Capacidad</small><b>{table.seats} personas</b></div>
-                <div><small>Estado</small><b>{table.status === "libre" ? "Disponible" : "En servicio"}</b></div>
+                <div>
+                  <small>Estado</small>
+                  <b>
+                    {table.status === "libre"
+                      ? "Disponible"
+                      : table.status === "deshabilitada"
+                        ? "Deshabilitada"
+                        : "Ocupada"}
+                  </b>
+                </div>
+              </div>
+
+              <div className="table-staff-actions">
+                <div className="eyebrow">ACCIONES DEL PERSONAL</div>
+
+                {disabled ? (
+                  <p>Esta mesa está deshabilitada y no admite nuevas acciones.</p>
+                ) : (
+                  <>
+                    {!occupied && (
+                      <button
+                        className="button primary full"
+                        disabled={actionLoading}
+                        onClick={() => runTableAction("occupy")}
+                      >
+                        <Check size={16} />
+                        {actionLoading ? "Procesando..." : "Marcar como ocupada"}
+                      </button>
+                    )}
+
+                    <button
+                      className="button secondary full"
+                      disabled={actionLoading}
+                      onClick={() => runTableAction("place_order")}
+                    >
+                      <Utensils size={16} />
+                      Registrar pedido
+                    </button>
+
+                    <button
+                      className="button secondary full"
+                      disabled={actionLoading}
+                      onClick={() => runTableAction("request_bill")}
+                    >
+                      <Wallet size={16} />
+                      Solicitar cuenta
+                    </button>
+
+                    {occupied && (
+                      <button
+                        className="button secondary full"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          if (confirm(`¿Confirmas que deseas liberar la mesa ${table.number}?`)) {
+                            runTableAction("release");
+                          }
+                        }}
+                      >
+                        <CheckCheck size={16} />
+                        Liberar mesa
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="qr-preview">
