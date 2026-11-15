@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Auth from "./Auth.jsx";
 import { supabase } from "./supabase";
 import { QRCodeCanvas } from "qrcode.react";
@@ -392,6 +392,7 @@ function App() {
   }, [restaurantId]);
 
   // CARGAR MESA PARA LA VISTA DEL CLIENTE
+  // CORRECCIÓN: se utiliza maybeSingle() en lugar de single()
   useEffect(() => {
     if (!customerMode) return;
 
@@ -400,30 +401,38 @@ function App() {
     async function loadCustomerTable() {
       setCustomerLoading(true);
       setCustomerError("");
+      setCustomerTable(null);
 
       try {
-        let query = supabase
-          .from("restaurant_tables")
-          .select("*");
-
-        if (qrToken) {
-          query = query.eq("qr_token", qrToken);
-        } else if (tableParam) {
-          throw new Error(
-            "Este enlace utiliza el formato antiguo. Copia el nuevo enlace QR desde el panel."
-          );
-        } else {
-          throw new Error("No se encontró el código de la mesa.");
+        if (!qrToken) {
+          throw new Error("No se encontró el código QR de la mesa.");
         }
 
-        const { data, error } = await query.single();
+        const { data, error } = await supabase
+          .from("restaurant_tables")
+          .select("*")
+          .eq("qr_token", qrToken)
+          .limit(1)
+          .maybeSingle();
 
         if (error) throw error;
 
-        if (mounted) setCustomerTable(mapTable(data));
-      } catch (error) {
+        if (!data) {
+          throw new Error(
+            "No se encontró esta mesa. Verifica el código QR o los permisos de acceso público en Supabase."
+          );
+        }
+
         if (mounted) {
-          setCustomerError(error.message || "No se encontró esta mesa.");
+          setCustomerTable(mapTable(data));
+        }
+      } catch (error) {
+        console.error("Error cargando mesa del cliente:", error);
+
+        if (mounted) {
+          setCustomerError(
+            error.message || "No se pudo cargar la mesa."
+          );
         }
       } finally {
         if (mounted) setCustomerLoading(false);
@@ -435,7 +444,7 @@ function App() {
     return () => {
       mounted = false;
     };
-  }, [customerMode, qrToken, tableParam]);
+  }, [customerMode, qrToken]);
 
   // TOAST
   useEffect(() => {
